@@ -6,6 +6,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import time # Import time for sleep
 import streamlit as st # Import streamlit for caching
+from googlesearch import search
 
 # --- Configuration ---
 load_dotenv()
@@ -14,21 +15,13 @@ METADATA_PATH = "faiss_index/textbook.metadata"
 GEMINI_MODEL = "gemini-2.5-pro" # Using available model for free tier
 
 # --- System Prompt for Gemini ---
-SYS_PROMPT = """You are an advanced academic assistant. Your task is to answer questions based *only* on the provided textbook context.
-You must ground your entire answer in the provided context.
-Provide a comprehensive, detailed explanation in your answer, including examples where relevant, and break down complex concepts step-by-step. Do not cite sources or mention page numbers. Do not use any external knowledge.
+SYS_PROMPT = """You are an engaging academic assistant. Answer questions based *only* on the provided textbook context, keeping answers concise, interesting, and accessible. Do not cite sources or use external knowledge.
 
-After providing the main answer, autonomously generate and answer 2-3 related follow-up questions that deepen understanding of the topic, based solely on the provided context. Format these as:
-**Follow-up Questions:**
-1. [Question 1]
-   [Detailed answer to question 1]
-2. [Question 2]
-   [Detailed answer to question 2]
-3. [Question 3]
-   [Detailed answer to question 3]
+After the main answer, suggest 1-2 related follow-up questions for deeper understanding, with brief answers.
 
-If the answer is not found in the provided context, or if the context is insufficient to answer the question, you must reply *only* with the single string:
-INSUFFICIENT_KB
+If you find a relevant answer in the context, end your response by asking: "Would you like me to search external websites for additional information on this topic?"
+
+If the context doesn't provide an answer, ask: "I couldn't find this information in the textbook. Would you like me to search external websites for relevant answers?"
 """
 
 @st.cache_resource
@@ -138,6 +131,41 @@ def ask_gemini(formatted_context, query, book_title):
     
     return "Error: Failed to get a response from Gemini after multiple retries due to rate limits."
 
+def search_external_sources(query, num_results=5):
+    """Searches external websites for additional information."""
+    try:
+        results = list(search(query, num_results=num_results))
+        return results
+    except Exception as e:
+        print(f"Error during external search: {e}")
+        return []
+
+def generate_answer_from_external(query, external_results):
+    """Generates an answer using Gemini based on external search results."""
+    if not external_results:
+        return "No external information could be retrieved."
+
+    # Format external results for Gemini
+    external_context = "EXTERNAL SEARCH RESULTS:\n"
+    for i, url in enumerate(external_results, 1):
+        external_context += f"{i}. {url}\n"
+
+    prompt = f"""Based on the following external search results, provide a comprehensive answer to the question: "{query}"
+
+{external_context}
+
+Please provide a detailed answer based on these external sources. Include relevant information and cite the sources where possible."""
+
+    # Use gemini-2.5-pro for external search
+    try:
+        genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+        external_model = genai.GenerativeModel("gemini-2.5-pro", system_instruction="You are a helpful assistant that provides comprehensive answers based on external search results.")
+        response = external_model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"Error generating answer from external sources: {e}")
+        return f"Error generating answer from external sources: {e}"
+
 def query_rag(query, book_title, top_k, similarity_threshold, embed_model):
     """Main RAG pipeline function."""
 
@@ -153,8 +181,6 @@ def query_rag(query, book_title, top_k, similarity_threshold, embed_model):
 
     # 2. Retrieve chunks (Locally, for free)
     retrieved_chunks = retrieve_chunks(query_vec, index, metadata, top_k, similarity_threshold)
-    if not retrieved_chunks:
-        return "I could not find a relevant answer in the provided textbook.", "", []
 
     # 3. Format context (Locally, for free)
     formatted_context = format_context(retrieved_chunks)
@@ -162,11 +188,16 @@ def query_rag(query, book_title, top_k, similarity_threshold, embed_model):
     # 4. Generate answer (Uses Gemini API free tier)
     answer = ask_gemini(formatted_context, query, book_title)
 
-    # 5. Final check
+    # 5. Check if user wants external search
+    if "Would you like me to search external websites" in answer:
+        # Extract the permission question and handle it in UI
+        return answer, "", retrieved_chunks, True  # Add flag for external search request
+
+    # 6. Final check
     if "INSUFFICIENT_KB" in answer:
         return "I could not find a relevant answer in the provided textbook.", "", []
 
-    # 6. Format sources for display
+    # 7. Format sources for display
     formatted_sources = format_sources(retrieved_chunks, book_title)
 
-    return answer, formatted_sources, retrieved_chunks
+    return answer, formatted_sources, retrieved_chunks, False

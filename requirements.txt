@@ -5,3 +5,4 @@ pdfplumber
 streamlit
 python-dotenv
 sentence-transformers
+googlesearch-python

@@ -2,7 +2,7 @@
 
 This project is a sophisticated Retrieval-Augmented Generation (RAG) application that transforms any PDF textbook into an interactive, intelligent academic assistant. Users can ask complex questions and receive detailed, context-aware answers based exclusively on the content of the provided textbook.
 
-The assistant is powered by Google's Gemini Pro model for generation and a local Sentence-Transformer model for efficient, free-of-charge embeddings.
+The assistant is powered by Google's Gemini 2.5 Pro model for generation and a local Sentence-Transformer model for efficient, free-of-charge embeddings.
 
 ## ✨ Features
 
@@ -10,7 +10,8 @@ The assistant is powered by Google's Gemini Pro model for generation and a local
 - **Contextual Q&A**: Get answers that are strictly grounded in the textbook's content, preventing hallucinations or external information.
 - **Source Citing**: Every answer is accompanied by the specific page numbers from the textbook where the information was found.
 - **Proactive Learning**: The AI autonomously generates and answers relevant follow-up questions to deepen the user's understanding of the topic.
-- **Configurable Retrieval**: Fine-tune the retrieval process by adjusting the number of chunks (`TOP_K`) and the `Similarity Threshold` directly in the UI.
+- **External Search Integration**: When textbook knowledge is insufficient or users want additional information, the AI can search external websites and generate comprehensive answers using Gemini 2.5 Pro.
+- **Configurable Retrieval**: Fine-tune the retrieval process by adjusting the number of retrieved chunks (`TOP_K`) and the `Similarity Threshold` directly in the UI.
 - **Stateful Chat Interface**: A clean, modern chat interface that remembers your conversation history.
 - **Efficient & Local**: Uses a local embedding model and a FAISS vector store for fast, private, and cost-effective retrieval. All resource-intensive models are cached for performance.
 
@@ -22,6 +23,7 @@ The assistant is powered by Google's Gemini Pro model for generation and a local
 - **Embedding Model**: Sentence-Transformers (`all-MiniLM-L6-v2`)
 - **Vector Database**: FAISS (Facebook AI Similarity Search)
 - **PDF Parsing**: pdfplumber
+- **External Search**: Google Search API (googlesearch-python)
 
 ## 📂 Project Structure
 
@@ -98,7 +100,66 @@ Follow these steps to set up and run the project on your local machine.
 3.  **Ask Questions**: Once ingestion is complete, the status in the sidebar will turn to "Ready". You can now type your questions into the chat input at the bottom of the main screen.
 4.  **Adjust Parameters (Optional)**: Use the sliders in the sidebar to adjust the `TOP_K` and `Similarity Threshold` to fine-tune the retrieval process for better answers.
 5.  **Clear Conversation**: If you want to start a new chat session, click the "Clear Conversation" button in the sidebar.
+6.  **External Search (Optional)**: If the AI suggests searching external websites for additional information, click "Yes, search external websites" to get comprehensive answers from web sources.
+
+## ⚠️ Limitations
+
+### Technical Limitations
+- **PDF Quality Dependency**: The accuracy of answers depends on the quality of text extraction from PDFs. Scanned documents or PDFs with complex layouts may have extraction errors.
+- **Chunk Size Constraints**: Text is chunked into 500-word segments with 50-word overlap. Very long or complex topics spanning multiple chunks may lose some context.
+- **Embedding Model Limitations**: Uses `all-MiniLM-L6-v2` which is efficient but may not capture highly specialized domain knowledge as well as larger models.
+- **Vector Search Approximation**: FAISS uses approximate nearest neighbor search for speed, which may occasionally miss the most relevant chunks.
+
+### API Limitations
+- **Gemini API Quota**: Limited to 50 requests per day on the free tier. Rate limiting and retries are implemented, but heavy usage may exhaust the quota.
+- **External Search Dependency**: External search functionality relies on Google Search and may be affected by search engine policies or network restrictions.
+- **Model Context Window**: Gemini 2.5 Pro has a context limit that may constrain the amount of retrieved text that can be processed in a single query.
+
+### Functional Limitations
+- **Single Textbook Focus**: Currently supports only one textbook at a time. Multiple textbooks would require separate ingestion processes.
+- **Text-Only Processing**: Cannot process images, tables, or mathematical formulas in PDFs - only extracted text is used.
+- **No Persistent Memory**: Conversation history is stored in session state but not persisted across browser sessions.
+- **English-Only**: Optimized for English text; other languages may have reduced accuracy due to model training data.
+
+### Performance Considerations
+- **Initial Setup Time**: First-time model loading and PDF ingestion can take several minutes.
+- **Memory Usage**: Large PDFs may require significant RAM for processing and embedding generation.
+- **Storage Requirements**: FAISS index and metadata files grow with PDF size.
+
+### Security & Privacy
+- **Local Processing**: All embeddings and vector operations are performed locally for privacy.
+- **API Key Security**: Google API key is stored in `.env` file - ensure this file is not committed to version control.
+- **External Search**: When using external search, queries are sent to Google Search - consider privacy implications for sensitive topics.
 
 ---
 
 This README provides a comprehensive guide to your project. Let me know if you'd like any section expanded or modified!
+
+## ⚠️ Limitations
+
+This section outlines the current limitations of the application.
+
+### Technical Limitations
+- **PDF Quality Dependency**: The accuracy of answers heavily depends on the quality of text extraction from the source PDF. Scanned documents (non-selectable text) or PDFs with complex multi-column layouts may result in poor extraction and inaccurate context.
+- **Chunking Strategy**: Text is currently chunked into fixed-size word segments. This simple method can occasionally split a sentence or a coherent thought across two different chunks, potentially reducing the quality of the retrieved context.
+- **Embedding Model Scope**: The application uses `all-MiniLM-L6-v2`, which is highly efficient but may not capture the nuances of highly specialized or niche academic domains as effectively as larger, more specialized embedding models.
+- **Vector Search Approximation**: FAISS utilizes Approximate Nearest Neighbor (ANN) search to ensure high speed. While highly accurate, it is not exhaustive and may, in rare cases, miss the single most relevant text chunk.
+
+### API & Service Limitations
+- **Gemini API Quota**: The application relies on the Google Gemini API, which has rate limits (e.g., requests per minute) and usage quotas, especially on the free tier. The app includes a retry mechanism, but heavy usage can lead to temporary service denial.
+- **External Search Reliability**: The external search feature uses an unofficial Google Search library. This can be unreliable and may be affected by network restrictions or changes in Google's web structure.
+
+### Functional Limitations
+- **Single Textbook Focus**: The current architecture is designed to process and query a single textbook at a time. Ingesting a new PDF will overwrite the previous index.
+- **Text-Only Processing**: The ingestion pipeline extracts and processes **text only**. It cannot interpret or analyze images, tables, complex mathematical formulas, or diagrams within the PDF.
+- **No Persistent Memory**: The chat history is stored in the user's session state and will be lost if the browser tab is closed or the application is restarted.
+- **English-Centric**: The embedding model and system prompts are optimized for English. Performance with non-English languages will be significantly degraded.
+
+### Performance & Resource Considerations
+- **Initial Ingestion Time**: The first-time ingestion of a large PDF can be time-consuming and CPU-intensive, as it involves chunking and generating embeddings for the entire document.
+- **Memory (RAM) Usage**: Loading the embedding model and processing large documents can require a significant amount of system RAM.
+- **Storage Footprint**: The generated FAISS index and metadata files can consume considerable disk space, with their size scaling directly with the length of the source PDF.
+
+### Security & Privacy
+- **API Key Management**: The Google API key is stored in a local `.env` file. It is crucial to ensure this file is never committed to public version control (e.g., a public GitHub repository).
+- **External Search Privacy**: When the external search feature is used, the user's query is sent to Google's public search engine. Users should be mindful of this when querying sensitive topics.
