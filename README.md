@@ -26,7 +26,6 @@ The assistant is powered by Google's Gemini 2.5 Pro model for generation and a l
 - **External Search**: Google Search API (googlesearch-python)
 
 ## 📂 Project Structure
-
 ```
 backend/
 ├── data/

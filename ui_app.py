@@ -113,59 +113,74 @@ if query := st.chat_input(f"Ask a question about {st.session_state.book_title}..
         with st.chat_message("user"):
             st.markdown(query)
 
-        # 3. Get the answer from the RAG pipeline
-        with st.spinner("Searching textbook and generating answer..."):
-            try:
-                result = rag_app.query_rag(
+        # 3. Get the answer from the RAG pipeline with streaming
+        try:
+            # Initialize placeholders for streaming
+            answer_placeholder = st.empty()
+            sources_placeholder = st.empty()
+            retrieved_chunks_placeholder = st.empty()
+
+            with st.chat_message("assistant"):
+                full_answer = ""
+                sources = ""
+                retrieved_chunks = []
+                external_search = False
+
+                # Stream the response
+                result_generator = rag_app.query_rag(
                     query,
                     st.session_state.book_title, # Pass book_title
                     st.session_state.top_k, # Pass TOP_K from session state
                     st.session_state.similarity_threshold, # Pass SIMILARITY_THRESHOLD from session state
-                    embed_model # Pass the loaded model
+                    embed_model, # Pass the loaded model
+                    stream=True
                 )
 
-                # Handle the result based on whether external search is requested
-                if len(result) == 4:  # External search requested
-                    answer, sources, retrieved_chunks, external_search = result
-                else:  # Normal response
-                    answer, sources, retrieved_chunks = result
-                    external_search = False
+                for chunk in result_generator:
+                    if isinstance(chunk, str):
+                        full_answer += chunk
+                        answer_placeholder.markdown(full_answer)
+                    else:
+                        # Handle non-streaming return values
+                        if len(chunk) == 4:
+                            answer, sources, retrieved_chunks, external_search = chunk
+                            full_answer = answer
+                            answer_placeholder.markdown(full_answer)
+                            if sources:
+                                sources_placeholder.expander("View Sources").markdown(sources.strip())
+                            retrieved_chunks_placeholder.expander("Show Retrieved Context").json(retrieved_chunks)
+                        else:
+                            answer, sources, retrieved_chunks = chunk
+                            full_answer = answer
+                            answer_placeholder.markdown(full_answer)
+                            if sources:
+                                sources_placeholder.expander("View Sources").markdown(sources.strip())
+                            retrieved_chunks_placeholder.expander("Show Retrieved Context").json(retrieved_chunks)
+                        break
 
-                # 4. Store answer and sources separately in session state
+                # Store answer and sources separately in session state
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "answer": answer,
+                    "answer": full_answer,
                     "sources": sources
                 })
 
-                # 5. Display the response in a more structured way
-                with st.chat_message("assistant"): # This block displays the *newest* message
-                    st.markdown(answer) # Display the main answer
+                # Handle external search request after streaming
+                if external_search:
+                    if st.button("Yes, search external websites", key=f"external_search_{len(st.session_state.messages)}"):
+                        with st.spinner("Searching external websites and generating answer..."):
+                            external_results = rag_app.search_external_sources(query)
+                            if external_results:
+                                # Generate answer from external sources
+                                external_answer = rag_app.generate_answer_from_external(query, external_results)
+                                st.subheader("Answer from External Sources:")
+                                st.markdown(external_answer)
 
-                    if sources: # If there are sources, show them in an expander
-                        with st.expander("View Sources"):
-                            st.markdown(sources.strip())
+                                st.subheader("External Search Results:")
+                                for i, url in enumerate(external_results[:5], 1):
+                                    st.markdown(f"{i}. [{url}]({url})")
+                            else:
+                                st.error("Could not retrieve external search results.")
 
-                    # Show the raw retrieved context for debugging
-                    with st.expander("Show Retrieved Context"):
-                        st.json(retrieved_chunks)
-
-                    # Handle external search request
-                    if external_search:
-                        if st.button("Yes, search external websites", key=f"external_search_{len(st.session_state.messages)}"):
-                            with st.spinner("Searching external websites and generating answer..."):
-                                external_results = rag_app.search_external_sources(query)
-                                if external_results:
-                                    # Generate answer from external sources
-                                    external_answer = rag_app.generate_answer_from_external(query, external_results)
-                                    st.subheader("Answer from External Sources:")
-                                    st.markdown(external_answer)
-
-                                    st.subheader("External Search Results:")
-                                    for i, url in enumerate(external_results[:5], 1):
-                                        st.markdown(f"{i}. [{url}]({url})")
-                                else:
-                                    st.error("Could not retrieve external search results.")
-
-            except Exception as e:
-                st.error(f"An error occurred during query processing: {e}")
+        except Exception as e:
+            st.error(f"An error occurred during query processing: {e}")

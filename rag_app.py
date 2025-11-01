@@ -103,20 +103,34 @@ def format_sources(retrieved_chunks, book_title):
     source_str = f'\n\n**Sources:**\n- "{book_title}" — Pages: {", ".join(map(str, pages))}'
     return source_str
 
-def ask_gemini(formatted_context, query, book_title):
+def ask_gemini(formatted_context, query, book_title, stream=False):
     """Sends the context and query to the cached Gemini model."""
     gemini_model = get_gemini_model()
     if gemini_model is None:
+        if stream:
+            for word in "Error: Gemini model could not be initialized. Please check your API key.".split():
+                yield word + " "
+                time.sleep(0.05)  # Small delay for lively effect
+            return
         return "Error: Gemini model could not be initialized. Please check your API key."
 
     max_retries = 5
     base_delay = 2 # seconds
     prompt = f"{formatted_context}\n\nQUESTION: {query}\n\nBOOK_TITLE: {book_title}"
-    
-    
+
+
     for attempt in range(max_retries):
         try:
-            response = gemini_model.generate_content(prompt)
+            # Use streaming for a more dynamic user experience
+            response = gemini_model.generate_content(prompt, stream=stream)
+            if stream:
+                for chunk in response:
+                    if chunk.text:
+                        words = chunk.text.split()
+                        for word in words:
+                            yield word + " "
+                            time.sleep(0.05)  # Small delay for smooth, lively flow
+                return
             return response.text
         except Exception as e:
             error_str = str(e)
@@ -127,8 +141,18 @@ def ask_gemini(formatted_context, query, book_title):
                 time.sleep(delay)
             else:
                 print(f"Error calling Gemini API: {e}")
+                if stream:
+                    for word in "Error: Gemini API call failed.".split():
+                        yield word + " "
+                        time.sleep(0.05)
+                    return
                 return "Error: Gemini API call failed."
-    
+
+    if stream:
+        for word in "Error: Failed to get a response from Gemini after multiple retries due to rate limits.".split():
+            yield word + " "
+            time.sleep(0.05)
+        return
     return "Error: Failed to get a response from Gemini after multiple retries due to rate limits."
 
 def search_external_sources(query, num_results=5):
@@ -166,17 +190,23 @@ Please provide a detailed answer based on these external sources. Include releva
         print(f"Error generating answer from external sources: {e}")
         return f"Error generating answer from external sources: {e}"
 
-def query_rag(query, book_title, top_k, similarity_threshold, embed_model):
+def query_rag(query, book_title, top_k, similarity_threshold, embed_model, stream=False):
     """Main RAG pipeline function."""
 
     # 0. Load FAISS index and metadata from cache
     index, metadata = load_rag_components()
     if index is None or metadata is None:
+        if stream:
+            yield "Error: The textbook index is not loaded. Please ingest the textbook first."
+            return
         return "Error: The textbook index is not loaded. Please ingest the textbook first.", "", []
 
     # 1. Embed query (Locally, for free)
     query_vec = embed_query(query, embed_model)
     if query_vec is None:
+        if stream:
+            yield "Error: Could not embed your query."
+            return
         return "Error: Could not embed your query.", "", []
 
     # 2. Retrieve chunks (Locally, for free)
@@ -186,18 +216,33 @@ def query_rag(query, book_title, top_k, similarity_threshold, embed_model):
     formatted_context = format_context(retrieved_chunks)
 
     # 4. Generate answer (Uses Gemini API free tier)
-    answer = ask_gemini(formatted_context, query, book_title)
+    if stream:
+        answer_generator = ask_gemini(formatted_context, query, book_title, stream=True)
+        full_answer = ""
+        for chunk in answer_generator:
+            full_answer += chunk
+            yield chunk
+        answer = full_answer
+    else:
+        answer = ask_gemini(formatted_context, query, book_title, stream=False)
 
     # 5. Check if user wants external search
     if "Would you like me to search external websites" in answer:
         # Extract the permission question and handle it in UI
+        if stream:
+            yield "\n\n"  # Add spacing for sources
         return answer, "", retrieved_chunks, True  # Add flag for external search request
 
     # 6. Final check
     if "INSUFFICIENT_KB" in answer:
+        if stream:
+            yield "\n\n"  # Add spacing for sources
         return "I could not find a relevant answer in the provided textbook.", "", []
 
     # 7. Format sources for display
     formatted_sources = format_sources(retrieved_chunks, book_title)
+
+    if stream:
+        yield "\n\n" + formatted_sources  # Yield sources after answer
 
     return answer, formatted_sources, retrieved_chunks, False
