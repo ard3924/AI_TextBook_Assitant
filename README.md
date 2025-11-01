@@ -17,13 +17,13 @@ The assistant is powered by Google's Gemini 2.5 Pro model for generation and a l
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Streamlit
+- **Frontend**: Streamlit (`1.35.0`)
 - **Backend**: Python
-- **Generative LLM**: Google Gemini (`gemini-2.5-pro`)
-- **Embedding Model**: Sentence-Transformers (`all-MiniLM-L6-v2`)
-- **Vector Database**: FAISS (Facebook AI Similarity Search)
-- **PDF Parsing**: pdfplumber
-- **External Search**: Google Search API (googlesearch-python)
+- **Generative LLM**: Google Gemini (`gemini-2.5-pro` via `google-generativeai==0.5.4`)
+- **Embedding Model**: Sentence-Transformers (`2.7.0`)
+- **Vector Database**: FAISS (`faiss-cpu==1.8.0`)
+- **PDF Parsing**: pdfplumber (`0.11.1`)
+- **Environment Management**: python-dotenv (`1.0.1`)
 
 ## 📂 Project Structure
 ```
@@ -82,7 +82,7 @@ Follow these steps to set up and run the project on your local machine.
 1.  **Launch the Streamlit App:**
     Run the following command in your terminal from the `backend` directory:
     ```bash
-    streamlit run ui_app.py
+    py -m streamlit run ui_app.py
     ```
 2.  **Open in Browser:**
     The application will automatically open in your default web browser.
@@ -103,39 +103,6 @@ Follow these steps to set up and run the project on your local machine.
 
 ## ⚠️ Limitations
 
-### Technical Limitations
-- **PDF Quality Dependency**: The accuracy of answers depends on the quality of text extraction from PDFs. Scanned documents or PDFs with complex layouts may have extraction errors.
-- **Chunk Size Constraints**: Text is chunked into 500-word segments with 50-word overlap. Very long or complex topics spanning multiple chunks may lose some context.
-- **Embedding Model Limitations**: Uses `all-MiniLM-L6-v2` which is efficient but may not capture highly specialized domain knowledge as well as larger models.
-- **Vector Search Approximation**: FAISS uses approximate nearest neighbor search for speed, which may occasionally miss the most relevant chunks.
-
-### API Limitations
-- **Gemini API Quota**: Limited to 50 requests per day on the free tier. Rate limiting and retries are implemented, but heavy usage may exhaust the quota.
-- **External Search Dependency**: External search functionality relies on Google Search and may be affected by search engine policies or network restrictions.
-- **Model Context Window**: Gemini 2.5 Pro has a context limit that may constrain the amount of retrieved text that can be processed in a single query.
-
-### Functional Limitations
-- **Single Textbook Focus**: Currently supports only one textbook at a time. Multiple textbooks would require separate ingestion processes.
-- **Text-Only Processing**: Cannot process images, tables, or mathematical formulas in PDFs - only extracted text is used.
-- **No Persistent Memory**: Conversation history is stored in session state but not persisted across browser sessions.
-- **English-Only**: Optimized for English text; other languages may have reduced accuracy due to model training data.
-
-### Performance Considerations
-- **Initial Setup Time**: First-time model loading and PDF ingestion can take several minutes.
-- **Memory Usage**: Large PDFs may require significant RAM for processing and embedding generation.
-- **Storage Requirements**: FAISS index and metadata files grow with PDF size.
-
-### Security & Privacy
-- **Local Processing**: All embeddings and vector operations are performed locally for privacy.
-- **API Key Security**: Google API key is stored in `.env` file - ensure this file is not committed to version control.
-- **External Search**: When using external search, queries are sent to Google Search - consider privacy implications for sensitive topics.
-
----
-
-This README provides a comprehensive guide to your project. Let me know if you'd like any section expanded or modified!
-
-## ⚠️ Limitations
-
 This section outlines the current limitations of the application.
 
 ### Technical Limitations
@@ -146,6 +113,7 @@ This section outlines the current limitations of the application.
 
 ### API & Service Limitations
 - **Gemini API Quota**: The application relies on the Google Gemini API, which has rate limits (e.g., requests per minute) and usage quotas, especially on the free tier. The app includes a retry mechanism, but heavy usage can lead to temporary service denial.
+- **Model Context Window**: Gemini 2.5 Pro has a context limit that may constrain the amount of retrieved text that can be processed in a single query.
 - **External Search Reliability**: The external search feature uses an unofficial Google Search library. This can be unreliable and may be affected by network restrictions or changes in Google's web structure.
 
 ### Functional Limitations
@@ -162,3 +130,7 @@ This section outlines the current limitations of the application.
 ### Security & Privacy
 - **API Key Management**: The Google API key is stored in a local `.env` file. It is crucial to ensure this file is never committed to public version control (e.g., a public GitHub repository).
 - **External Search Privacy**: When the external search feature is used, the user's query is sent to Google's public search engine. Users should be mindful of this when querying sensitive topics.
+
+---
+
+This README provides a comprehensive guide to your project. Let me know if you'd like any section expanded or modified!

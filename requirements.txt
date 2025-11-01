@@ -1,8 +1,8 @@
-google-generativeai
-faiss-cpu
-numpy
-pdfplumber
-streamlit
-python-dotenv
-sentence-transformers
-googlesearch-python
+google-generativeai==0.5.4
+faiss-cpu==1.8.0
+numpy==1.26.4
+pdfplumber==0.11.1
+streamlit==1.35.0
+python-dotenv==1.0.1
+sentence-transformers==2.7.0
+googlesearch-python==1.2.3
