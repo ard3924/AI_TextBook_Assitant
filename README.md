@@ -131,6 +131,3 @@ This section outlines the current limitations of the application.
 - **API Key Management**: The Google API key is stored in a local `.env` file. It is crucial to ensure this file is never committed to public version control (e.g., a public GitHub repository).
 - **External Search Privacy**: When the external search feature is used, the user's query is sent to Google's public search engine. Users should be mindful of this when querying sensitive topics.
 
----
-
-This README provides a comprehensive guide to your project. Let me know if you'd like any section expanded or modified!
